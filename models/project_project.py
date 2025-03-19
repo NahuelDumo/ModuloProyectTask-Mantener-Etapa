@@ -24,17 +24,22 @@ class ProjectProject(models.Model):
         # Asignar correctamente las subtareas
         for task in self.task_ids:
             if task.child_ids:
-                new_task = self.env['project.task'].browse(task_mapping[task.id])
-                new_task.write({
-                    'child_ids': [(6, 0, [task_mapping[child.id] for child in task.child_ids if child.id in task_mapping])]
-                })
+                new_task = self.env['project.task'].browse(task_mapping.get(task.id))
+                if new_task:
+                    new_task.write({
+                        'child_ids': [(6, 0, [
+                            task_mapping[child.id] for child in task.child_ids if child.id in task_mapping
+                        ])]
+                    })
 
-        # Eliminar tareas que contienen "(copia)" en el nombre
+        # 🔹 **Elimina tareas que contienen "(copia)" en el nuevo proyecto**
         tasks_to_delete = self.env['project.task'].search([
             ('project_id', '=', new_project.id),
-            ('name', 'ilike', '(copia)')
+            ('name', 'like', '%(copia)%')  # Mejor coincidencia con el nombre
         ])
-        tasks_to_delete.unlink()
+
+        if tasks_to_delete:
+            tasks_to_delete.unlink()
 
         return new_project
 
