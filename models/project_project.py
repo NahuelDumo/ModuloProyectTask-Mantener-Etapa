@@ -4,7 +4,7 @@ class ProjectProject(models.Model):
     _inherit = 'project.project'
 
     def copy(self, default=None):
-        """ Replica el proyecto correctamente y elimina tareas con '(copia)' en el nombre """
+        """ Replica el proyecto correctamente y programa la eliminación de tareas '(copia)' después de la transacción. """
         default = dict(default or {})
 
         # Crear la copia del proyecto
@@ -32,16 +32,20 @@ class ProjectProject(models.Model):
                         ])]
                     })
 
-        # 🔹 **Elimina tareas que contienen "(copia)" en el nuevo proyecto**
+        # **🔹 Programar eliminación de tareas '(copia)' después de que la transacción se complete**
+        self.env.cr.after_commit(lambda: self._eliminar_tareas_copia(new_project.id))
+
+        return new_project
+
+    def _eliminar_tareas_copia(self, project_id):
+        """ Elimina tareas con '(copia)' en su nombre después de que la transacción ha finalizado. """
         tasks_to_delete = self.env['project.task'].search([
-            ('project_id', '=', new_project.id),
-            ('name', 'like', '%(copia)%')  # Mejor coincidencia con el nombre
+            ('project_id', '=', project_id),
+            ('name', 'like', '%(copia)%')
         ])
 
         if tasks_to_delete:
             tasks_to_delete.unlink()
-
-        return new_project
 
     @api.model_create_multi
     def create(self, vals_list):
