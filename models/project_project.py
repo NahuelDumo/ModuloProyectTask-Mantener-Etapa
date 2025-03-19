@@ -1,27 +1,29 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, exceptions
 
 class ProjectProject(models.Model):
     _inherit = 'project.project'
 
-    def copy(self, default=None):
-        """ Crea una réplica exacta del proyecto SIN tocar el original """
-        default = dict(default or {})
+    is_frozen = fields.Boolean(string="Proyecto Frizado", default=False)
 
-        # Copiar el proyecto
+    def copy(self, default=None):
+        """ Crea una réplica exacta del proyecto SIN modificar el original """
+        default = dict(default or {})
+        default['is_frozen'] = False  # El nuevo proyecto NO debe estar frizado
+
+        # Crear la copia del proyecto
         new_project = super(ProjectProject, self).copy(default)
 
-        # Diccionario para mapear tareas originales con sus copias
         task_mapping = {}
 
-        # Copiar cada tarea asociándola al nuevo proyecto y mantener sus datos
+        # Copiar cada tarea y asignarla al nuevo proyecto
         for task in self.task_ids:
             new_task = task.copy({
-                'project_id': new_project.id,  # Asociar la nueva tarea al nuevo proyecto
-                'parent_id': False  # Inicialmente sin padre para evitar problemas de referencia
+                'project_id': new_project.id,
+                'parent_id': False  # Evitamos problemas de referencia
             })
-            task_mapping[task.id] = new_task.id  # Guardar referencia entre original y copia
+            task_mapping[task.id] = new_task.id
 
-        # Ajustar las relaciones de subtareas en la copia
+        # Mantener relaciones de subtareas
         for task in self.task_ids:
             if task.child_ids:
                 copied_task = self.env['project.task'].browse(task_mapping[task.id])
@@ -30,3 +32,13 @@ class ProjectProject(models.Model):
                 })
 
         return new_project
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """ Evita agregar tareas a proyectos frizados """
+        for vals in vals_list:
+            if 'project_id' in vals:
+                project = self.env['project.project'].browse(vals['project_id'])
+                if project.is_frozen:
+                    raise exceptions.ValidationError("No puedes agregar tareas a un proyecto frizado.")
+        return super(ProjectProject, self).create(vals_list)
