@@ -3,33 +3,38 @@ from odoo import models, fields, api, exceptions
 class ProjectProject(models.Model):
     _inherit = 'project.project'
 
-    is_frozen = fields.Boolean(string="Proyecto Frizado", default=False)
-
     def copy(self, default=None):
-        """ Crea una réplica exacta del proyecto SIN modificar el original """
+        """ Replica el proyecto correctamente y elimina tareas con '(copia)' en el nombre """
         default = dict(default or {})
-        default['is_frozen'] = False  # El nuevo proyecto NO debe estar frizado
 
         # Crear la copia del proyecto
         new_project = super(ProjectProject, self).copy(default)
 
+        # Mapeo para asociar tareas originales con sus copias
         task_mapping = {}
 
-        # Copiar cada tarea y asignarla al nuevo proyecto
+        # Copiar todas las tareas del proyecto original
         for task in self.task_ids:
             new_task = task.copy({
-                'project_id': new_project.id,
-                'parent_id': False  # Evitamos problemas de referencia
+                'project_id': new_project.id,  # Asignar la tarea al nuevo proyecto
+                'parent_id': False  # Evitar problemas de referencia con subtareas
             })
-            task_mapping[task.id] = new_task.id
+            task_mapping[task.id] = new_task.id  # Guardar la relación tarea original -> tarea copiada
 
-        # Mantener relaciones de subtareas
+        # Asignar correctamente las subtareas
         for task in self.task_ids:
             if task.child_ids:
-                copied_task = self.env['project.task'].browse(task_mapping[task.id])
-                copied_task.write({
+                new_task = self.env['project.task'].browse(task_mapping[task.id])
+                new_task.write({
                     'child_ids': [(6, 0, [task_mapping[child.id] for child in task.child_ids if child.id in task_mapping])]
                 })
+
+        # Eliminar tareas que contienen "(copia)" en el nombre
+        tasks_to_delete = self.env['project.task'].search([
+            ('project_id', '=', new_project.id),
+            ('name', 'ilike', '(copia)')
+        ])
+        tasks_to_delete.unlink()
 
         return new_project
 
