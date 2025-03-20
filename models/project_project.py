@@ -7,6 +7,9 @@ class ProjectProject(models.Model):
         """ Replica el proyecto correctamente y programa la eliminación de tareas '(copia)' después de la transacción. """
         default = dict(default or {})
 
+        # Asegurar que el nuevo proyecto no se copie como frizado
+        default['is_frozen'] = False  
+
         # Crear la copia del proyecto
         new_project = super(ProjectProject, self).copy(default)
 
@@ -31,9 +34,10 @@ class ProjectProject(models.Model):
                             task_mapping[child.id] for child in task.child_ids if child.id in task_mapping
                         ])]
                     })
-
+                    
         # **🔹 Programar eliminación de tareas '(copia)' después de que la transacción se complete**
-        #self.env.after_commit(lambda: self._eliminar_tareas_copia(new_project.id))
+        # self.env.after_commit(lambda: self._eliminar_tareas_copia(new_project.id))
+
         return new_project
 
     def _eliminar_tareas_copia(self, project_id):
