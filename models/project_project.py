@@ -4,14 +4,17 @@ class ProjectProject(models.Model):
     _inherit = 'project.project'
 
     def copy(self, default=None):
-        """ Replica el proyecto correctamente y programa la eliminación de tareas '(copia)' después de la transacción. """
+        """ Replica el proyecto correctamente sin que la copia se cree frizada """
         default = dict(default or {})
 
-        # Asegurar que el nuevo proyecto no se copie como frizado
-        default['is_frozen'] = False  
+        # 🔹 Evitar que el nuevo proyecto se copie como frizado
+        default.setdefault('is_frozen', False)
 
         # Crear la copia del proyecto
         new_project = super(ProjectProject, self).copy(default)
+
+        if new_project.is_frozen:
+            new_project.write({'is_frozen': False})
 
         # Mapeo para asociar tareas originales con sus copias
         task_mapping = {}
@@ -34,21 +37,9 @@ class ProjectProject(models.Model):
                             task_mapping[child.id] for child in task.child_ids if child.id in task_mapping
                         ])]
                     })
-                    
         # **🔹 Programar eliminación de tareas '(copia)' después de que la transacción se complete**
         # self.env.after_commit(lambda: self._eliminar_tareas_copia(new_project.id))
-
         return new_project
-
-    def _eliminar_tareas_copia(self, project_id):
-        """ Elimina tareas con '(copia)' en su nombre después de que la transacción ha finalizado. """
-        tasks_to_delete = self.env['project.task'].search([
-            ('project_id', '=', project_id),
-            ('name', 'like', '%(copia)%')
-        ])
-
-        if tasks_to_delete:
-            tasks_to_delete.unlink()
 
     @api.model_create_multi
     def create(self, vals_list):
