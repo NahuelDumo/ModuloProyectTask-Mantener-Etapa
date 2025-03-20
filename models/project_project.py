@@ -33,8 +33,7 @@ class ProjectProject(models.Model):
                     })
 
         # **🔹 Programar eliminación de tareas '(copia)' después de que la transacción se complete**
-        self.env.cr.after_commit(lambda: self._eliminar_tareas_copia(new_project.id))
-
+        #self.env.after_commit(lambda: self._eliminar_tareas_copia(new_project.id))
         return new_project
 
     def _eliminar_tareas_copia(self, project_id):
